@@ -1,36 +1,97 @@
-# Config payloads generation for Home Assistant MQTT discovery
+# HaMqttConfigBuilderLite
 
-A tiny library that will let you generate config payloads for Home Assistant MQTT discovery. These payload ar JSON key/value pairs.
+A lightweight, zero-dependency JSON builder for Home Assistant MQTT Discovery payloads.
 
-This is intended to replace [plapointe6/HAMqttDevice](https://github.com/plapointe6/HAMqttDevice) in my future iot devices.
+**Features:**
 
+- No `ArduinoJson` or STL containers
+- Single pre-allocated buffer (`String`)
+- Very low RAM usage (no heap fragmentation)
+- Support for nested objects (device, availability, etc.)
+- Efficient reuse of the `device` block for multiple sensor entities
 
-## Exemple
+---
 
-```c++
-#include "Arduino.h"
+## 🔧 Basic Usage
+
+```cpp
 #include "HaMqttConfigBuilder.h"
 
-String generateConfig() {
-  return HaMqttConfigBuilder()
-    .add("~", "homeassistant/light/my_light")
-    .add("unique_id", "my_light")
-    .add("name", "My test light")
-    .add("stat_t", "~/state")
-    .add("cmd_t", "~/cmd")
-    .generatePayload();
-}
+HaMqttConfigBuilder cfg;
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println(generateConfig());
-}
+// Step 1: Define the device block once
+cfg.beginDevice()
+   .add("name",  "Plant Sensor")
+   .add("model", "v1.0")
+   .add("sw",    "0.1")
+.endDevice();
 
-void loop() {
+// Step 2: Add the first sensor
+cfg.add("name",         "Soil Moisture")
+   .add("state_topic",  "plant/sensor/soil")
+   .add("unit_of_meas", "%")
+   .add("device_class", "humidity");
+
+Serial.println(cfg.generate());
+
+// Step 3: Reuse device block, add a second sensor
+cfg.nextSensor();
+cfg.add("name",         "Plant Battery")
+   .add("state_topic",  "plant/sensor/batt")
+   .add("unit_of_meas", "%")
+   .add("device_class", "battery");
+
+Serial.println(cfg.generate());
+```
+
+---
+
+## 📦 Output Example
+
+```json
+{
+  "device": {
+    "name": "Plant Sensor",
+    "model": "v1.0",
+    "sw": "0.1"
+  },
+  "name": "Soil Moisture",
+  "state_topic": "plant/sensor/soil",
+  "unit_of_meas": "%",
+  "device_class": "humidity"
 }
 ```
 
-Output:
+---
+
+## 🔍 Extract Field Value
+
+You can extract values from the generated JSON using `getString()`:
+
+```cpp
+String topic;
+if (cfg.getString("state_topic", topic)) {
+  Serial.println("Topic is: " + topic);
+}
 ```
-{"~":"homeassistant/light/my_light","unique_id":"my_light","name":"My test light","stat_t":"~/state","cmd_t":"~/cmd"}
-```
+
+---
+
+## 🧠 Memory Efficiency
+
+- Internally uses a single `String` buffer
+- Nested objects supported up to configurable max depth (default 6)
+- Device block is cached via position pointer to avoid duplication
+
+---
+
+## 💡 Tip
+
+Use `cfg.clear()` if you want to start over completely and redefine the device block.
+
+---
+
+## License
+
+MIT
+
